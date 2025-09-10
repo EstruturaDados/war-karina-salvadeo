@@ -18,6 +18,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 #include <locale.h>
 
 // --- Constantes Globais ---
@@ -39,20 +40,28 @@ typedef struct {
 // --- Protótipos das Funções ---
 // Declarações antecipadas de todas as funções que serão usadas no programa, organizadas por categoria.
 void limparBufferEntrada();
+Territorio* alocarMapa(int tamanho);
 void inicializarTerritorios(Territorio *mapa, int tamanho);
+void liberarMemoria(Territorio *mapa);
 void exibirMapa(const Territorio *mapa, int tamanho);
 void exibirMenuPrincipal();
+void faseDeAtaque(Territorio *mapa, int tamanho);
+void simularAtaque(Territorio *atacante, Territorio *defensor);
 
 // --- Função Principal (main) ---
 int main() {
     setlocale(LC_ALL, "Portuguese");  // Configura idioma para português (acentos)
+    srand(time(NULL)); // Inicializa gerador de números aleatórios (rand)
 
-    Territorio mapa[MAX_TERRITORIOS]; // Declara um vetor estático de 5 territórios
+    // Aloca dinamicamente os territórios
+    Territorio *mapa = alocarMapa(MAX_TERRITORIOS);
+    if (mapa == NULL) {
+        printf("Erro ao alocar memória!\n");
+        return 1;
+    }
 
     printf("=== PROJETO WAR ESTRUTURADO ===\n");
-
-    // Cadastro inicial dos territórios
-    inicializarTerritorios(mapa, MAX_TERRITORIOS);
+    inicializarTerritorios(mapa, MAX_TERRITORIOS); // Cadastro inicial dos territórios
 
     int opcao;
     // Loop principal do jogo
@@ -77,13 +86,16 @@ int main() {
     return 0;
 }
 
-// --- Implementação das Funções ---
 
+// --- Implementação das Funções ---
 void limparBufferEntrada() {
     int c;
-    while ((c = getchar()) != '\n' && c != EOF); // Lê caracteres até encontrar ENTER ou fim do arquivo
+    while ((c = getchar()) != '\n' && c != EOF);
 }
 
+Territorio* alocarMapa(int tamanho) {
+    return (Territorio*) calloc(tamanho, sizeof(Territorio));
+}
 
 void inicializarTerritorios(Territorio *mapa, int tamanho) {
     for (int i = 0; i < tamanho; i++) {                  // Percorre todos os territórios
@@ -103,6 +115,10 @@ void inicializarTerritorios(Territorio *mapa, int tamanho) {
     }
 }
 
+// Função para liberar o espaço alocado para o mapa
+void liberarMemoria(Territorio *mapa) {
+    free(mapa);
+}
 
 void exibirMapa(const Territorio *mapa, int tamanho) {
     printf("\n=== Estado Atual do Mapa ===\n");
@@ -118,5 +134,74 @@ void exibirMapa(const Territorio *mapa, int tamanho) {
 void exibirMenuPrincipal() {
     printf("\n=== Menu Principal ===\n");
     printf("1 - Exibir mapa\n");
+    printf("2 - Fase de ataque\n");
     printf("0 - Sair\n");
+}
+
+// FaseDeAtaque: gerenciar a escolha dos territórios atacante e defensor
+//   - Mostra o mapa
+//   - Pede para o jogador escolher atacante e defensor
+//   - Faz validações básicas
+//   - Chama simularAtaque()
+void faseDeAtaque(Territorio *mapa, int tamanho) {
+    int idAtacante, idDefensor;
+
+    exibirMapa(mapa, tamanho);
+
+    printf("\nEscolha o território atacante (1-%d): ", tamanho);
+    scanf("%d", &idAtacante);
+    limparBufferEntrada();
+
+    printf("Escolha o território defensor (1-%d): ", tamanho);
+    scanf("%d", &idDefensor);
+    limparBufferEntrada();
+
+    // Valida entradas
+    if (idAtacante < 1 || idAtacante > tamanho ||
+        idDefensor < 1 || idDefensor > tamanho ||
+        idAtacante == idDefensor) {
+        printf("\nEscolha inválida!\n");
+        return;
+    }
+
+    simularAtaque(&mapa[idAtacante - 1], &mapa[idDefensor - 1]);
+}
+
+// SimularAtaque: executar a lógica de uma batalha entre dois territórios
+//   - Atacante e defensor rolam dados (1 a 6)
+//   - Se atacante >= defensor → defensor perde 1 tropa
+//   - Se defensor chega a 0 → território conquistado (muda de cor)
+//   - Caso contrário, atacante perde 1 tropa
+void simularAtaque(Territorio *atacante, Territorio *defensor) {
+    if (atacante->tropas <= 1) { // Atacante precisa de pelo menos 2 tropas
+        printf("\nO atacante não tem tropas suficientes para atacar!\n");
+        return;
+    }
+
+    // Rola os dados
+    int dadoAtacante = (rand() % 6) + 1;
+    int dadoDefensor = (rand() % 6) + 1;
+
+    // Mostra informações da batalha
+    printf("\nBatalha: %s (atacante) vs %s (defensor)\n",
+           atacante->nome, defensor->nome);
+    printf("Dado atacante: %d | Dado defensor: %d\n",
+           dadoAtacante, dadoDefensor);
+
+    // Aplica regras
+    if (dadoAtacante >= dadoDefensor) {
+        defensor->tropas--;
+        printf("Atacante venceu! Defensor perde 1 tropa.\n");
+
+        if (defensor->tropas <= 0) {
+            // Conquista do território
+            printf("O território %s foi conquistado!\n", defensor->nome);
+            strcpy(defensor->cor, atacante->cor);  // Muda cor para a do atacante
+            defensor->tropas = 1;                  // Defensor recebe 1 tropa
+            atacante->tropas--;                    // Atacante move 1 tropa para ocupar
+        }
+    } else {
+        atacante->tropas--;
+        printf("Defensor venceu! Atacante perde 1 tropa.\n");
+    }
 }
